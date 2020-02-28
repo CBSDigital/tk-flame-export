@@ -200,7 +200,15 @@ class ShotgunSubmitter(object):
         file_name = os.path.basename(path)
         version_name = os.path.splitext(os.path.splitext(file_name)[0])[0]
         batch_item["data"]["code"] = version_name
-        
+
+        # CBSD Customization
+        # ========================================
+        if "ref" in version_name.lower():
+            batch_item["data"]["sg_version_type"] = "Reference"
+        else:
+            batch_item["data"]["sg_version_type"] = "Plate"
+        # ========================================
+
         batch_item["data"]["description"] = user_comments
         batch_item["data"]["project"] = context.project
         batch_item["data"]["entity"] = context.entity
