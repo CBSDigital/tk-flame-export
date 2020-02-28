@@ -8,11 +8,16 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import traceback
 import pprint
 import sgtk
 from sgtk import TankError
 from .shot import Shot
 
+# CBSD Customization
+# ========================================
+scene_cache = {}
+# ========================================
 
 class Sequence(object):
     """
@@ -184,6 +189,20 @@ class Sequence(object):
                base_seg.cut_out_frame != sg_out or \
                cut_order != sg_cut_order:
 
+                # CBSD Customization
+                # ========================================
+                project_id = self._app.engine.context.project['id']
+                cbsd_core = sgtk.platform.framework.load_framework(self._app.engine,
+                                                                   self._app.engine.get_env(),
+                                                                   'tk-framework-cbsdcore_v0.1.x')
+                delivery_type = "final"
+                entity_managers = cbsd_core.import_module("entity_managers")
+                client_spec = entity_managers.get_client_spec(project_id, delivery_type)
+                manager = entity_managers.CbsdClientSpecManager(client_spec['id'])
+                handle_count = manager.get_handle_count()
+                working_duration = base_seg.duration + handle_count * 2
+                # ========================================
+
                 # note that at this point all shots are guaranteed to exist in Shotgun
                 # since they were created in the initial export step.
                 sg_cut_batch = {
@@ -196,7 +215,11 @@ class Sequence(object):
                         "sg_head_in": base_seg.head_in_frame,
                         "sg_tail_out": base_seg.tail_out_frame,
                         "sg_cut_duration": base_seg.duration,
-                        "sg_cut_order": cut_order
+                        "sg_cut_order": cut_order,
+                        # CBSD Customization
+                        # ========================================
+                        "sg_working_duration": working_duration,
+                        # ========================================
                     }
                 }
 
@@ -387,7 +410,7 @@ class Sequence(object):
                 self._shot_parent_entity_type,
                 {"code": self.name,
                  "task_template": sg_task_template,
-                 "description": "Created by the Shotgun Flame exporter.",
+                 # "description": "Created by the Shotgun Flame exporter.",
                  "project": project}
             )
             self._shotgun_id = sg_parent["id"]
@@ -436,15 +459,43 @@ class Sequence(object):
         sg_batch_data = []
         for shot in self._shots.values():
             if not shot.exists_in_shotgun:
+
+                # CBSD Customization
+                # ===================================
+                scene = None
+                try:
+                    scene_code = shot.name.split("_")[2]
+                    global scene_cache
+                    if scene_code not in scene_cache:
+                        scene = self._app.shotgun.find_one("Scene",
+                                                           [['project', 'is', project],
+                                                            ['code', 'is', scene_code]],
+                                                           []
+                                                           )
+                        if not scene:
+                            scene = self._app.shotgun.create("Scene", {"code": scene_code, "project": project})
+                        scene_cache[scene_code] = scene
+                    scene = scene_cache[scene_code]
+
+                except Exception:
+                    self._app.log_warning("Unable associate shot '%s' with a scene: %s"
+                                          % (shot.name, traceback.format_exc()))
+
+                # ===================================
+
                 # this shot does not yet exist in Shotgun
                 batch = {
                     "request_type": "create",
                     "entity_type": "Shot",
                     "data": {
                         "code": shot.name,
-                        "description": "Created by the Shotgun Flame exporter.",
+                        # "description": "Created by the Shotgun Flame exporter.",
                         self._shot_parent_link_field: shot_parent_link,
                         "task_template": sg_task_template,
+                        # CBSD Customization
+                        # ========================================
+                        "sg_scene": scene,
+                        # ========================================
                         "project": project
                     }
                 }
