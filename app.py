@@ -125,19 +125,19 @@ class FlameExport(Application):
                      - abortMessage: Abort message to feed back to client
         """
         from sgtk.platform.qt import QtGui
-        
+
         # reset export session data
         self._sequences = []
         self._reached_post_asset_phase = False
-        
+
         # pop up a UI asking the user for description
         dialogs = self.import_module("dialogs")
-                      
+
         (return_code, widget) = self.engine.show_modal("Export Shots",
                                                        self,
                                                        dialogs.SubmitDialog,
                                                        self.export_preset_handler.get_preset_names())
-        
+
         if return_code == QtGui.QDialog.Rejected:
             # user pressed cancel
             self._abort_export(info, "User cancelled the operation.")
@@ -149,15 +149,15 @@ class FlameExport(Application):
             export_preset_name = widget.get_video_preset()
             # resolve this to an object
             self._export_preset = self.export_preset_handler.get_preset_by_name(export_preset_name)
-            
+
             # populate the host to use for the export. Currently hard coded to local
             info["destinationHost"] = self.engine.get_server_hostname()
-            
+
             # let the export root path align with the primary project root
             info["destinationPath"] = self.sgtk.project_path
-            
+
             # pick up the xml export profile from the configuration
-            info["presetPath"] = self._export_preset.get_xml_path()    
+            info["presetPath"] = self._export_preset.get_xml_path()
             self.log_debug("%s: Starting custom export session with preset '%s'" % (self, info["presetPath"]))
 
         # Log usage metrics
@@ -752,55 +752,55 @@ class FlameExport(Application):
             scanFormat:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )        
         """
         
-        # these member variables are used to pass data down the pipeline, to post_batch_render_sg_process()
-        self._send_batch_render_to_review = False
-        self._user_comments = None
-        self._batch_export_preset = None
-        self._batch_context = None
-        
-        render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
-        batch_path = info.get("setupResolvedPath")
-
-        # first check if the resolved paths match our templates in the settings. Otherwise ignore the export
-        self.log_debug("Checking if the render path '%s' is recognized by toolkit..." % render_path)
-        self._batch_export_preset = self.export_preset_handler.get_preset_for_batch_render_path(render_path)
-        if self._batch_export_preset is None:
-            self.log_debug("This path does not appear to match any toolkit render paths. Ignoring.")
-            return None
-        
-        batch_template = self.get_template("batch_template")
-        if not batch_template.validate(batch_path):
-            self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
-            return None
-
-        # as a last check, extract the context for the batch path
-        self.log_debug("Getting context from path '%s'" % batch_path)
-        context = self.sgtk.context_from_path(batch_path)
-        self.log_debug("Context: %s" % context)
-        if context is None:
-            # not known by this app
-            self.log_debug("Could not establish a context from the batch path. Aborting.")
-            return
-
-        # looks like we understand these paths!
-        # store context so we can pass it downstream to the submission method.
-        self._batch_context = context
-
-        # ok so this looks like one of our renders - check with the user if they want to submit to review!
-        from sgtk.platform.qt import QtGui
-
-        # pop up a UI asking the user for description
-        dialogs = self.import_module("dialogs")
-        (return_code, widget) = self.engine.show_modal(
-            "Send to Review",
-            self,
-            dialogs.BatchRenderDialog
-        )
-
-        if return_code != QtGui.QDialog.Rejected:
-            # user wants review!
-            self._send_batch_render_to_review = True
-            self._user_comments = widget.get_comments()
+        # # these member variables are used to pass data down the pipeline, to post_batch_render_sg_process()
+        # self._send_batch_render_to_review = False
+        # self._user_comments = None
+        # self._batch_export_preset = None
+        # self._batch_context = None
+        #
+        # render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+        # batch_path = info.get("setupResolvedPath")
+        #
+        # # first check if the resolved paths match our templates in the settings. Otherwise ignore the export
+        # self.log_debug("Checking if the render path '%s' is recognized by toolkit..." % render_path)
+        # self._batch_export_preset = self.export_preset_handler.get_preset_for_batch_render_path(render_path)
+        # if self._batch_export_preset is None:
+        #     self.log_debug("This path does not appear to match any toolkit render paths. Ignoring.")
+        #     return None
+        #
+        # batch_template = self.get_template("batch_template")
+        # if not batch_template.validate(batch_path):
+        #     self.log_debug("The path '%s' does not match the template '%s'. Ignoring." % (batch_path, batch_template))
+        #     return None
+        #
+        # # as a last check, extract the context for the batch path
+        # self.log_debug("Getting context from path '%s'" % batch_path)
+        # context = self.sgtk.context_from_path(batch_path)
+        # self.log_debug("Context: %s" % context)
+        # if context is None:
+        #     # not known by this app
+        #     self.log_debug("Could not establish a context from the batch path. Aborting.")
+        #     return
+        #
+        # # looks like we understand these paths!
+        # # store context so we can pass it downstream to the submission method.
+        # self._batch_context = context
+        #
+        # # ok so this looks like one of our renders - check with the user if they want to submit to review!
+        # from sgtk.platform.qt import QtGui
+        #
+        # # pop up a UI asking the user for description
+        # dialogs = self.import_module("dialogs")
+        # (return_code, widget) = self.engine.show_modal(
+        #     "Send to Review",
+        #     self,
+        #     dialogs.BatchRenderDialog
+        # )
+        #
+        # if return_code != QtGui.QDialog.Rejected:
+        #     # user wants review!
+        #     self._send_batch_render_to_review = True
+        #     self._user_comments = widget.get_comments()
 
 
     def post_batch_render_sg_process(self, info):
@@ -839,95 +839,100 @@ class FlameExport(Application):
             scanFormat:           Scan format ( 'FIELD_1', 'FIELD_2', 'PROGRESSIVE' )
             aborted:              Indicate if the export has been aborted by the user.
         """
-
-        if info.get("aborted"):
-            self.log_debug("Rendering was aborted. Will not push to Shotgun.")
-            return
-
-        if self._batch_export_preset is None:
-            self.log_warning("Batch export preset was not populated in the pre-batch render hook. "
-                             "Aborting post batch render hook.")
-            return
-
-        version_number = int(info["versionNumber"])
-        description = self._user_comments or "Automatic Flame batch render"
-        export_preset_obj = self.export_preset_handler.get_preset_by_name(
-            self._batch_export_preset.get_name()
-        )
-
-        # first register the batch file as a publish in Shotgun
-        batch_path = info.get("setupResolvedPath")
-        sg_batch_data = self._sg_submit_helper.register_batch_publish(
-            self._batch_context,
-            batch_path,
-            description,
-            version_number
-        )
-
-        try:
-            self.engine.show_busy("Updating Shotgun...", "Publishing...")
-
-            # Now register the rendered images as a published plate in Shotgun
-            full_flame_batch_render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
-            
-            sg_data = self._sg_submit_helper.register_video_publish(
-                export_preset_obj.get_name(),
-                self._batch_context,
-                info["width"],
-                info["height"],
-                full_flame_batch_render_path,
-                description,
-                version_number,
-                is_batch_render=True
-            )
-
-            target_entities = [
-                {
-                    "type": sg_data["type"],
-                    "id" : sg_data["id"]
-                },
-                {
-                    "type": sg_batch_data["type"],
-                    "id": sg_batch_data["id"]
-                }
-            ]
-
-            # Finally, create a version record in Shotgun, generate a quicktime and upload it
-            # only do this if the user clicked "send to review" in the UI.
-            if self._send_batch_render_to_review:
-                sg_version_data = self._sg_submit_helper.create_version(
-                    self._batch_context,
-                    full_flame_batch_render_path,
-                    description,
-                    sg_data,
-                    info["aspectRatio"]
-                )
-
-                target_entities.append(
-                    {
-                        "type": "Version",
-                        "id" : sg_version_data["id"]
-                    }
-                )
-
-                if export_preset_obj.batch_highres_quicktime_enabled():
-                    self.engine.show_busy("Updating Shotgun...", "Updating local quicktime...")
-                    self.engine.trancoder.trancoder(
-                        display_name=export_preset_obj.get_name(),
-                        path=full_flame_batch_render_path,
-                        target_entities=target_entities,
-                        asset_info=info
-                    )
-
-            self.engine.show_busy("Updating Shotgun...", "Updating thumbnails...")
-            self.engine.thumbnail_generator.generate(
-                display_name=export_preset_obj.get_name(),
-                path=full_flame_batch_render_path,
-                dependencies=None,
-                target_entities=target_entities,
-                asset_info=info,
-                favor_preview=export_preset_obj.upload_quicktime()
-            )
-            self.engine.thumbnail_generator.finalize()
-        finally:
-            self.engine.clear_busy()
+        # from pprint import pformat
+        #
+        # self.log_debug("*" * 80)
+        # self.log_debug("*" * 80)
+        # self.log_debug(pformat(info))
+        #
+        # if info.get("aborted"):
+        #     self.log_debug("Rendering was aborted. Will not push to Shotgun.")
+        #     return
+        #
+        # if self._batch_export_preset is None:
+        #     self.log_warning("Batch export preset was not populated in the pre-batch render hook. "
+        #                      "Aborting post batch render hook.")
+        #     return
+        #
+        # version_number = int(info["versionNumber"])
+        # description = self._user_comments or "Automatic Flame batch render"
+        # export_preset_obj = self.export_preset_handler.get_preset_by_name(
+        #     self._batch_export_preset.get_name()
+        # )
+        #
+        # # first register the batch file as a publish in Shotgun
+        # batch_path = info.get("setupResolvedPath")
+        # sg_batch_data = self._sg_submit_helper.register_batch_publish(
+        #     self._batch_context,
+        #     batch_path,
+        #     description,
+        #     version_number
+        # )
+        #
+        # try:
+        #     self.engine.show_busy("Updating Shotgun...", "Publishing...")
+        #
+        #     # Now register the rendered images as a published plate in Shotgun
+        #     full_flame_batch_render_path = os.path.join(info.get("exportPath"), info.get("resolvedPath"))
+        #
+        #     sg_data = self._sg_submit_helper.register_video_publish(
+        #         export_preset_obj.get_name(),
+        #         self._batch_context,
+        #         info["width"],
+        #         info["height"],
+        #         full_flame_batch_render_path,
+        #         description,
+        #         version_number,
+        #         is_batch_render=True
+        #     )
+        #
+        #     target_entities = [
+        #         {
+        #             "type": sg_data["type"],
+        #             "id" : sg_data["id"]
+        #         },
+        #         {
+        #             "type": sg_batch_data["type"],
+        #             "id": sg_batch_data["id"]
+        #         }
+        #     ]
+        #
+        #     # Finally, create a version record in Shotgun, generate a quicktime and upload it
+        #     # only do this if the user clicked "send to review" in the UI.
+        #     if self._send_batch_render_to_review:
+        #         sg_version_data = self._sg_submit_helper.create_version(
+        #             self._batch_context,
+        #             full_flame_batch_render_path,
+        #             description,
+        #             sg_data,
+        #             info["aspectRatio"]
+        #         )
+        #
+        #         target_entities.append(
+        #             {
+        #                 "type": "Version",
+        #                 "id" : sg_version_data["id"]
+        #             }
+        #         )
+        #
+        #         if export_preset_obj.batch_highres_quicktime_enabled():
+        #             self.engine.show_busy("Updating Shotgun...", "Updating local quicktime...")
+        #             self.engine.trancoder.trancoder(
+        #                 display_name=export_preset_obj.get_name(),
+        #                 path=full_flame_batch_render_path,
+        #                 target_entities=target_entities,
+        #                 asset_info=info
+        #             )
+        #
+        #     self.engine.show_busy("Updating Shotgun...", "Updating thumbnails...")
+        #     self.engine.thumbnail_generator.generate(
+        #         display_name=export_preset_obj.get_name(),
+        #         path=full_flame_batch_render_path,
+        #         dependencies=None,
+        #         target_entities=target_entities,
+        #         asset_info=info,
+        #         favor_preview=export_preset_obj.upload_quicktime()
+        #     )
+        #     self.engine.thumbnail_generator.finalize()
+        # finally:
+        #     self.engine.clear_busy()

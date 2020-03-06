@@ -201,6 +201,8 @@ class Sequence(object):
                 manager = entity_managers.CbsdClientSpecManager(client_spec['id'])
                 handle_count = manager.get_handle_count()
                 working_duration = base_seg.duration + handle_count * 2
+                plate_presets = self._app.get_setting("plate_presets")
+                start_frame = plate_presets[0].get("start_frame", 1)
                 # ========================================
 
                 # note that at this point all shots are guaranteed to exist in Shotgun
@@ -210,14 +212,14 @@ class Sequence(object):
                     "entity_type": "Shot",
                     "entity_id": shot.shotgun_id,
                     "data": {
-                        "sg_cut_in": base_seg.cut_in_frame,
-                        "sg_cut_out": base_seg.cut_out_frame,
-                        "sg_head_in": base_seg.head_in_frame,
-                        "sg_tail_out": base_seg.tail_out_frame,
-                        "sg_cut_duration": base_seg.duration,
-                        "sg_cut_order": cut_order,
                         # CBSD Customization
                         # ========================================
+                        "sg_cut_in": start_frame + handle_count,
+                        "sg_cut_out": working_duration - handle_count,
+                        "sg_head_in": start_frame,
+                        "sg_tail_out": start_frame + working_duration - 1,
+                        "sg_cut_duration": base_seg.duration,
+                        "sg_cut_order": cut_order,
                         "sg_working_duration": working_duration,
                         # ========================================
                     }
