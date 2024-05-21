@@ -284,9 +284,14 @@ class ShotgunSubmitter(object):
                 batch_item["data"]["tank_published_file"] = sg_publish_data
 
         # populate the path to frames with a path which is using %4d syntax
+        # CBSD Customization: Make this a platform agnostic unc path.
+        path_to_frames = self.__get_tk_path_from_flame_plate_path(path)
+        regexp = re.compile(r'^/[^/]')
+        if regexp.match(path_to_frames):
+            path_to_frames = path_to_frames.replace("/", "//", 1)
         batch_item["data"][
             "sg_path_to_frames"
-        ] = self.__get_tk_path_from_flame_plate_path(path)
+        ] = path_to_frames
 
         # This is used to find the latest Version from the same department.
         batch_item["data"]["sg_department"] = self.SHOTGUN_DEPARTMENT
