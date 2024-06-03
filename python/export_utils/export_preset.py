@@ -345,6 +345,7 @@ class ExportPreset(object):
                <name>
                   <framePadding>{FRAME_PADDING}</framePadding>
                   <useTimecode>{USE_TIMECODE}</useTimecode>
+                  <startFrame>{START_FRAME}</startFrame>
                </name>
                <createOpenClip>
                   <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
@@ -428,6 +429,14 @@ class ExportPreset(object):
             "Flame preset generation: Setting use timecode to %s based on "
             "%s token in template %s" % (use_timecode, frame_token, template)
         )
+
+        start_frame = str(self._raw_preset.get("start_frame", 1))
+        xml = xml.replace("{START_FRAME}", str(start_frame))
+        self._app.log_debug(
+            "Flame preset generation: Setting use timecode to %s based on "
+            "%s token in template %s" % (start_frame, frame_token, template)
+        )
+
 
         # Align the padding for versions with the definition in the version template
         version_key = template.keys.get("version")
