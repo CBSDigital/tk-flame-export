@@ -632,7 +632,7 @@ class ExportPresetHandler(object):
 
             preset_names.append(raw_preset["name"])
 
-        return sorted(preset_names)
+        return preset_names
 
     def get_preset_by_name(self, preset_name):
         """
