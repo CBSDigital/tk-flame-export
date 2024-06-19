@@ -627,6 +627,10 @@ class FlameExport(Application):
                                     {"type": sg_data["type"], "id": sg_data["id"]}
                                 ]
                                 if segment.has_shotgun_version:
+                                    self._sg_submit_helper.update_version_dependencies(
+                                        segment.shotgun_version_id, 
+                                        sg_data
+                                    )
                                     target_entities.append(
                                         {
                                             "type": "Version",
