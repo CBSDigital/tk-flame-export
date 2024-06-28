@@ -312,6 +312,8 @@ class ExportPreset(object):
         # we always generate xmls with a matching preset version.
         preset_version = self._app.engine.preset_version
 
+        # CBSD (tvoll) <frameIndex> added for flame 2024 changes to start frame behavior
+        # https://help.autodesk.com/view/FLAME/2024/ENU/?guid=GUID-85275C7C-A1C5-42A0-9900-4970DDD59D38
         xml = (
             """<?xml version="1.0" encoding="UTF-8"?>
             <preset version="%s">
@@ -346,6 +348,7 @@ class ExportPreset(object):
                   <framePadding>{FRAME_PADDING}</framePadding>
                   <useTimecode>{USE_TIMECODE}</useTimecode>
                   <startFrame>{START_FRAME}</startFrame>
+                  <frameIndex>0</frameIndex>
                </name>
                <createOpenClip>
                   <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
