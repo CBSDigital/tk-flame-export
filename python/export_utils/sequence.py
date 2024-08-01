@@ -219,7 +219,7 @@ class Sequence(object):
                         # CBSD Customization
                         # ========================================
                         "sg_cut_in": start_frame + handle_count,
-                        "sg_cut_out": working_duration - handle_count,
+                        "sg_cut_out": start_frame + working_duration - handle_count - 1,
                         "sg_head_in": start_frame,
                         "sg_tail_out": start_frame + working_duration - 1,
                         "sg_cut_duration": base_seg.duration,
