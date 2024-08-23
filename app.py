@@ -380,6 +380,27 @@ class FlameExport(Application):
                 "from template %s and fields %s: %s" % (template, fields, e)
             )
 
+        # if the version number is 0, check that there isn't already files on disk.
+        # If there are, version up the publish.
+        if fields["version"] == 0 and not re.search(r"[A-Z,a-z][0-9]+$", fields["segment_name"]):
+            self.log_debug("Checking for existing files on disk...")
+            skip_fields = ["version"]
+            file_paths = self.engine.sgtk.paths_from_template(
+                template,
+                fields,
+                skip_fields,
+                skip_missing_optional_keys=True
+            )
+            if file_paths:
+                versions = [0]
+                for a_file in file_paths:
+                    # extract the values from the path so compare version numbers.
+                    path_fields = template.get_fields(a_file)
+                    versions.append(path_fields["version"])
+                else:
+                    fields["version"] = max(versions) + 1
+                    full_path = template.apply_fields(fields)
+            
         self.log_debug("Resolved %s -> %s" % (fields, full_path))
 
         # chop off the root of the path - the resolvedPath should be local to the destinationPath
