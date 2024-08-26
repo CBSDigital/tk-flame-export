@@ -375,6 +375,9 @@ class FlameExport(Application):
         try:
             full_path = template.apply_fields(fields)
         except Exception as e:
+            self.log_debug("Could not resolve a file system path "
+                "from template %s and fields %s: %s" % (template, fields, e)
+            )
             raise TankError(
                 "Could not resolve a file system path "
                 "from template %s and fields %s: %s" % (template, fields, e)
@@ -382,10 +385,10 @@ class FlameExport(Application):
 
         # if the version number is 0, check that there isn't already files on disk.
         # If there are, version up the publish.
-        if fields["version"] == 0 and not re.search(r"[A-Z,a-z][0-9]+$", fields["segment_name"]):
+        if fields["version"] == 0: # and not re.search(r"[A-Z,a-z][0-9]+$", fields["segment_name"]):
             self.log_debug("Checking for existing files on disk...")
-            skip_fields = ["version"]
-            file_paths = self.engine.sgtk.paths_from_template(
+            skip_fields = ["version", "flame.frame"]
+            file_paths = self.sgtk.paths_from_template(
                 template,
                 fields,
                 skip_fields,
@@ -396,9 +399,19 @@ class FlameExport(Application):
                 for a_file in file_paths:
                     # extract the values from the path so compare version numbers.
                     path_fields = template.get_fields(a_file)
-                    versions.append(path_fields["version"])
+                    try:
+                        versions.append(path_fields["version"])
+                    except KeyError as e:
+                        self.log_debug(
+                            "version missing in path: %s" % a_file
+                        )
+                        continue
+
                 else:
-                    fields["version"] = max(versions) + 1
+                    pub_ver = max(versions) + 1
+                    self.log_debug("Forcing publish version to %s" % (pub_ver))
+                    info["versionNumber"] = pub_ver
+                    fields["version"] = pub_ver
                     full_path = template.apply_fields(fields)
             
         self.log_debug("Resolved %s -> %s" % (fields, full_path))
