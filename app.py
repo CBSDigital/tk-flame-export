@@ -383,9 +383,11 @@ class FlameExport(Application):
                 "from template %s and fields %s: %s" % (template, fields, e)
             )
 
-        # if the version number is 0, check that there isn't already files on disk.
-        # If there are, version up the publish.
-        if fields["version"] == 0: # and not re.search(r"[A-Z,a-z][0-9]+$", fields["segment_name"]):
+        # CBSD Customization
+        # If the version number is 0, check that there isn't already files on disk.
+        # Version up, if publishes are found.  Otherwise, set the starting version to 1 (Production Request).
+        if fields["version"] == 0: 
+            pub_ver = 1
             self.log_debug("Checking for existing files on disk...")
             skip_fields = ["version", "flame.frame"]
             file_paths = self.sgtk.paths_from_template(
@@ -409,10 +411,11 @@ class FlameExport(Application):
 
                 else:
                     pub_ver = max(versions) + 1
-                    self.log_debug("Forcing publish version to %s" % (pub_ver))
-                    info["versionNumber"] = pub_ver
-                    fields["version"] = pub_ver
-                    full_path = template.apply_fields(fields)
+                    
+            self.log_debug("Forcing publish version to %s" % (pub_ver))
+            info["versionNumber"] = pub_ver
+            fields["version"] = pub_ver
+            full_path = template.apply_fields(fields)
             
         self.log_debug("Resolved %s -> %s" % (fields, full_path))
 
