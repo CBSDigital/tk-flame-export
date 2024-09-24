@@ -414,6 +414,7 @@ class FlameExport(Application):
                     
             self.log_debug("Forcing publish version to %s" % (pub_ver))
             info["versionNumber"] = pub_ver
+            info["versionName"] = "v01"
             fields["version"] = pub_ver
             full_path = template.apply_fields(fields)
             
@@ -682,7 +683,18 @@ class FlameExport(Application):
                                         }
                                     )
                                     sg_batch_data = None
-
+                                self.log_debug(
+                                    "display_name=%s\n"
+                                    "path=%s\n"
+                                    "dependencies=%s\n"
+                                    "target_entities=%s\n"
+                                    "asset_info=%s" % (
+                                        segment.name,
+                                        segment.render_path,
+                                        dependencies,
+                                        target_entities,
+                                        segment.flame_data)
+                                    )
                                 self.engine.thumbnail_generator.generate(
                                     display_name=segment.name,
                                     path=segment.render_path,
