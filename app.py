@@ -345,11 +345,17 @@ class FlameExport(Application):
 
         if asset_type == "video":
             # handle the Flame sequence token - it will come in as "[1001-1100]"
+            # Failing that, check for a single frame number in the path and treat
+            # it as an integer to satisfy apply_fields for this template.
             re_match = re.search(".*(\[[0-9]+-[0-9]+\])\..*", info["resolvedPath"])
             if re_match:
                 frames = re_match.group(1)
                 fields["SEQ"] = frames
                 fields["flame.frame"] = frames
+            else:
+                re_match = re.search(".*\D([0-9]+)\..*", info["resolvedPath"])
+                if re_match:
+                    fields["flame.frame"] = int(re_match.group(1))
 
         # create some fields based on the info in the info params
         if "versionNumber" in info:
