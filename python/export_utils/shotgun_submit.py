@@ -132,6 +132,10 @@ class ShotgunSubmitter(object):
         self._app.log_debug("Register render publish in ShotGrid: %s" % str(args))
         sg_publish_data = sgtk.util.register_publish(**args)
         self._app.log_debug("Register complete: %s" % sg_publish_data)
+        
+        # CBSD Customization: let the resolution be carried down for other purposes
+        sg_publish_data.setdefault('height', height)
+        sg_publish_data.setdefault('width', width)
 
         # return the sg data for the main publish
         return sg_publish_data
@@ -149,6 +153,13 @@ class ShotgunSubmitter(object):
         if sgtk.util.get_published_file_entity_type(self._app.sgtk) == "PublishedFile":
             # client is using published file entity
             data["published_files"] = [sg_publish_data]
+
+            # CBSD Customization: We want the Version to know the correct resolution.
+            width = sg_publish_data.get('width')
+            height = sg_publish_data.get('height')
+            if width and height:
+                data["sg_width"] = width
+                data["sg_height"] = height
         else:
             # client is using old "TankPublishedFile" entity
             data["tank_published_file"] = sg_publish_data
