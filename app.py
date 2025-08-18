@@ -652,6 +652,22 @@ class FlameExport(Application):
                                     "Updating Shot %s / Segment %s"
                                     % (shot.name, segment.name),
                                 )
+                                # CBSD Customization
+                                # If publishing a new A plate, update the pixel aspect ratio field on the Shot.
+                                if segment.name in ["A", "AT"]:
+                                    # Update the Shot PAR
+                                    pixel_aspect_ratio = (segment.render_aspect_ratio * segment.render_height) / segment.render_width
+                                    self.engine.shotgun.update(
+                                        "Shot", 
+                                        shot.context.entity["id"], 
+                                        {"sg_pixel_aspect_ratio": pixel_aspect_ratio}
+                                    )
+                                    self.engine.show_busy(
+                                        "Updating ShotGrid...",
+                                        "Updating Shot %s / Segment %s (and updating pixel aspect ratio to %s )" % (
+                                            shot.name, segment.name, pixel_aspect_ratio),
+                                    )
+
                                 sg_data = self._sg_submit_helper.register_video_publish(
                                     self._export_preset.get_name(),
                                     shot.context,
