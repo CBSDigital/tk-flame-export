@@ -206,3 +206,60 @@ class Shot(object):
         :param data: dictionary with data from flame
         """
         self._flame_batch_data = data
+
+    def fix_batch_clip_versions(self):
+        """
+        Update version tokens in clip node xml files to match the batch version.
+        """
+        if not self.has_batch_export:
+            return
+
+        batch_path = self.batch_path
+        clip_dir = os.path.splitext(batch_path)[0]
+
+        if not os.path.isdir(clip_dir):
+            self._app.log_warning(
+                "Cannot fix batch clip versions for %s: directory does not exist: %s"
+                % (self, clip_dir)
+            )
+            return
+
+        version_number = self.batch_version_number
+        version_pattern = re.compile(r"v(\d+)")
+
+        def _replace_version_tokens(path_value):
+            def _replace(match):
+                padding = len(match.group(1))
+                return "v%s" % str(version_number).zfill(padding)
+
+            return version_pattern.sub(_replace, path_value)
+
+        for root_dir, _, files in os.walk(clip_dir):
+            for file_name in files:
+                if not file_name.endswith(".clip_node_clip"):
+                    continue
+
+                clip_file_path = os.path.join(root_dir, file_name)
+
+                try:
+                    tree = ET.parse(clip_file_path)
+                    root = tree.getroot()
+                except Exception as e:
+                    self._app.log_warning(
+                        "Failed to parse clip xml %s: %s" % (clip_file_path, e)
+                    )
+                    continue
+
+                changed = False
+                for path_el in root.iter("path"):
+                    if not path_el.text:
+                        continue
+
+                    updated = _replace_version_tokens(path_el.text)
+                    if updated != path_el.text:
+                        path_el.text = updated
+                        changed = True
+
+                if changed:
+                    tree.write(clip_file_path, encoding="utf-8", xml_declaration=True)
+        

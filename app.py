@@ -60,6 +60,12 @@ class FlameExport(Application):
         """
         self.log_debug("%s: Initializing" % self)
 
+        # CBSD Customization
+        # Store a version number that can be used across the export process. This is needed because Flame doesn't 
+        # pass version information to all hooks, so we need to be able to store it when we do get it and then use 
+        # it in later stages of the export process.
+        self._cbs_version = None
+
         # sequences that are being exported
         self._sequences = []
 
@@ -359,7 +365,12 @@ class FlameExport(Application):
 
         # create some fields based on the info in the info params
         if "versionNumber" in info:
-            fields["version"] = int(info["versionNumber"])
+            # CBSD Customization
+            # Check for previously stored version number so all elements will be in sync.             
+            _version_number = int(info["versionNumber"])
+            if self._cbs_version:
+                _version_number = self._cbs_version
+            fields["version"] = _version_number
 
         fields["segment_name"] = asset_name
 
@@ -419,6 +430,7 @@ class FlameExport(Application):
                     pub_ver = max(versions) + 1
                     
             self.log_debug("Forcing publish version to %s" % (pub_ver))
+            self._cbs_version = pub_ver
             info["versionNumber"] = pub_ver
             info["versionName"] = "v01"
             fields["version"] = pub_ver
@@ -492,6 +504,13 @@ class FlameExport(Application):
         # resolve shot object
         shot = self._sequences[-1].get_shot(shot_name)
 
+        # CBSD Customization
+        # Override the version number in `info`.
+        if self._cbs_version:
+            info["versionNumber"] = self._cbs_version
+            if info.get("versionName") == "v00":
+                info["versionName"] = "v%s" % str(self._cbs_version).zfill(2)
+            
         if asset_type in ["video", "movie"]:
             # create a new segment for the shot
             segment = shot.add_segment(segment_name)
@@ -642,6 +661,7 @@ class FlameExport(Application):
                                     shot.batch_version_number,
                                 )
                             )
+                            shot.fix_batch_clip_versions()
                         else:
                             sg_batch_data = None
 
