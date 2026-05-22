@@ -9,6 +9,8 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from __future__ import absolute_import
+import re
+import xml.etree.ElementTree as ET
 import os
 import sgtk
 from sgtk import TankError
@@ -236,7 +238,8 @@ class Shot(object):
 
         for root_dir, _, files in os.walk(clip_dir):
             for file_name in files:
-                if not file_name.endswith(".clip_node_clip"):
+                file_type = os.path.splitext(file_name)[1]
+                if not file_type in [".clip_node_clip", ".clip_node"]:
                     continue
 
                 clip_file_path = os.path.join(root_dir, file_name)
@@ -249,15 +252,26 @@ class Shot(object):
                         "Failed to parse clip xml %s: %s" % (clip_file_path, e)
                     )
                     continue
-
+                
                 changed = False
-                for path_el in root.iter("path"):
-                    if not path_el.text:
-                        continue
+                if file_type == ".clip_node":
+                    xml_elem = "ClipName"
 
-                    updated = _replace_version_tokens(path_el.text)
-                    if updated != path_el.text:
-                        path_el.text = updated
+                if file_type == ".clip_node_clip":
+                    for _elem in root.iter("path"):
+                        if not _elem.text:
+                            continue
+
+                        updated = _replace_version_tokens(_elem.text)
+                        if updated != _elem.text:
+                            _elem.text = updated
+                            changed = True
+                else:
+                    for _elem in root.iter("ClipName"):
+                        if not _elem.text:
+                            continue
+
+                        _elem.text = _elem.text + " v%s" % str(version_number).zfill(2)
                         changed = True
 
                 if changed:

@@ -835,6 +835,10 @@ class FlameExport(Application):
                 "- %d Shots had their cut information updated. <br>" % num_cut_updates
             )
 
+        # CBSD Customization
+        # Clear value
+        self._cbs_version = None
+
         self.engine.show_modal(
             "Submission Complete", self, dialogs.SubmissionCompleteDialog, comments
         )
