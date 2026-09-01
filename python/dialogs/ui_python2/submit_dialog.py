@@ -42,6 +42,9 @@ class Ui_SubmitDialog(object):
         self.export_presets.setObjectName("export_presets")
         self.horizontalLayout_2.addWidget(self.export_presets)
         self.verticalLayout.addLayout(self.horizontalLayout_2)
+        self.publish_source_element = QtGui.QCheckBox(SubmitDialog)
+        self.publish_source_element.setObjectName("publish_source_element")
+        self.verticalLayout.addWidget(self.publish_source_element)
         self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
         spacerItem = QtGui.QSpacerItem(
@@ -72,6 +75,14 @@ class Ui_SubmitDialog(object):
             QtGui.QApplication.translate(
                 "SubmitDialog",
                 "Use Export Preset",
+                None,
+                QtGui.QApplication.UnicodeUTF8,
+            )
+        )
+        self.publish_source_element.setText(
+            QtGui.QApplication.translate(
+                "SubmitDialog",
+                "Publish source media to ShotGrid as an Element",
                 None,
                 QtGui.QApplication.UnicodeUTF8,
             )

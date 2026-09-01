@@ -33,6 +33,7 @@ class Segment(object):
         self._shot = parent
         self._name = name
         self._flame_data = None
+        self._source_media_path = None
 
         # associated ShotGrid version
         self._shotgun_version_id = None
@@ -313,6 +314,22 @@ class Segment(object):
         :param value: Flame hook data dictionary for this segment.
         """
         self._flame_data = value
+
+    @property
+    def source_media_path(self):
+        """
+        Path to the original source media (e.g. camera source clip) that this
+        segment was conformed from, or None if it could not be resolved.
+        """
+        return self._source_media_path
+
+    def set_source_media_path(self, path):
+        """
+        Set the path to the original source media for this segment.
+
+        :param path: Path to the source media, or None if not resolved.
+        """
+        self._source_media_path = path
 
     def set_shotgun_version_id(self, version_id):
         """

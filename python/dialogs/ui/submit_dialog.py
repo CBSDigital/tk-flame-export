@@ -62,6 +62,11 @@ class Ui_SubmitDialog(object):
 
         self.verticalLayout.addLayout(self.horizontalLayout_2)
 
+        self.publish_source_element = QCheckBox(SubmitDialog)
+        self.publish_source_element.setObjectName("publish_source_element")
+
+        self.verticalLayout.addWidget(self.publish_source_element)
+
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.horizontalSpacer = QSpacerItem(368, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -91,6 +96,7 @@ class Ui_SubmitDialog(object):
         SubmitDialog.setWindowTitle(QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None))
         self.label_2.setText("")
         self.label.setText(QCoreApplication.translate("SubmitDialog", "Use Export Preset", None))
+        self.publish_source_element.setText(QCoreApplication.translate("SubmitDialog", "Publish source media to ShotGrid as an Element", None))
         self.cancel.setText(QCoreApplication.translate("SubmitDialog", "Cancel", None))
         self.submit.setText(QCoreApplication.translate("SubmitDialog", "Submit to ShotGrid", None))
     # retranslateUi

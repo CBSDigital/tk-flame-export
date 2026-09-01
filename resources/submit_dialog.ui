@@ -56,6 +56,13 @@
     </layout>
    </item>
    <item>
+    <widget class="QCheckBox" name="publish_source_element">
+     <property name="text">
+      <string>Publish source media to ShotGrid as an Element</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <spacer name="horizontalSpacer">

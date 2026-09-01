@@ -140,6 +140,34 @@ class ShotgunSubmitter(object):
         # return the sg data for the main publish
         return sg_publish_data
 
+    def create_element(self, context, filename, source_path):
+        """
+        Finds or creates an Element entity in ShotGrid for a piece of source media,
+        linked to the Shot represented by the given context.
+
+        :param context: Context to associate the Element with
+        :param filename: Filename of the source media, used as the Element's code
+        :param source_path: Full path to the source media, stored on sg_source_file
+        :returns: ShotGrid data for the found or created Element
+        """
+        element = self._app.shotgun.find_one(
+            "Element",
+            [["project", "is", context.project], ["code", "is", filename]],
+        )
+        if not element:
+            self._app.log_debug("Creating Element in ShotGrid for %s..." % filename)
+            element = self._app.shotgun.create(
+                "Element",
+                {
+                    "code": filename,
+                    "project": context.project,
+                    "sg_source_file": {"local_path": source_path},
+                    self._app.get_setting("element_link_field"): context.entity,
+                },
+            )
+            self._app.log_debug("...Element created: %s" % element)
+        return element
+
     def update_version_dependencies(self, version_id, sg_publish_data):
         """
         Updates the dependencies for a version in ShotGrid.

@@ -29,7 +29,7 @@ class SubmitDialog(QtGui.QWidget):
     for the generated plates.
     """
 
-    def __init__(self, presets):
+    def __init__(self, presets, publish_source_element_default=False):
         """
         Constructor
         """
@@ -48,6 +48,8 @@ class SubmitDialog(QtGui.QWidget):
 
         # load up the export presets
         self.ui.export_presets.addItems(presets)
+
+        self.ui.publish_source_element.setChecked(publish_source_element_default)
 
     @property
     def exit_code(self):
@@ -70,10 +72,27 @@ class SubmitDialog(QtGui.QWidget):
         """
         return self.ui.export_presets.currentText()
 
+    def get_publish_source_element(self):
+        """
+        Returns True if the user has chosen to publish source media as a ShotGrid Element
+        """
+        return self.ui.publish_source_element.isChecked()
+
     def _on_submit_clicked(self):
         """
         Called when the 'submit' button is clicked.
         """
+
+        # # Debug with debugpy by uncommenting the following lines
+        # import debugpy
+
+        # # 5678 is the default attach port in the VS Code debug configurations. Unless a host and port are specified, host defaults to 127.0.0.1
+        # debugpy.log_to("~/debugpy.log")
+        # debugpy.configure(python="/opt/Shotgun/Python3/bin/python")
+        # debugpy.listen(5678)
+        # debugpy.wait_for_client()
+        # debugpy.breakpoint()
+
         self.__exit_code = QtGui.QDialog.Accepted
         self.close()
 

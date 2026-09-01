@@ -83,6 +83,7 @@ class FlameExport(Application):
         # Shot export user UI input
         self._user_comments = ""
         self._export_preset = None
+        self._publish_source_element = False
 
         # flag to indicate that something was actually submitted by the export process
         self._reached_post_asset_phase = False
@@ -139,11 +140,26 @@ class FlameExport(Application):
         # pop up a UI asking the user for description
         dialogs = self.import_module("dialogs")
 
+        # CBSD Customization
+        # Default the "publish source element" checkbox to checked for certain
+        # projects, driven by Project.sg_short_name.
+        publish_source_element_default = False
+        project = self.shotgun.find_one(
+            "Project",
+            [["id", "is", self.context.project["id"]]],
+            ["sg_short_name"],
+        )
+        if project and project.get("sg_short_name") in self.get_setting(
+            "publish_source_element_default_projects"
+        ):
+            publish_source_element_default = True
+
         (return_code, widget) = self.engine.show_modal(
             "Export Shots",
             self,
             dialogs.SubmitDialog,
             self.export_preset_handler.get_preset_names(),
+            publish_source_element_default,
         )
 
         if return_code == QtGui.QDialog.Rejected:
@@ -155,6 +171,8 @@ class FlameExport(Application):
             self._user_comments = widget.get_comments()
             # get export preset name
             export_preset_name = widget.get_video_preset()
+            # CBSD Customization
+            self._publish_source_element = widget.get_publish_source_element()
             # resolve this to an object
             self._export_preset = self.export_preset_handler.get_preset_by_name(
                 export_preset_name
@@ -526,6 +544,12 @@ class FlameExport(Application):
             # pass in raw data from flame
             segment.set_flame_data(info)
 
+            # CBSD Customization
+            # Resolve the original source media path for this segment, if the user
+            # has opted in to publishing source media as a ShotGrid Element.
+            if self._publish_source_element:
+                segment.set_source_media_path(self._resolve_segment_source_path(segment))
+
         elif asset_type == "batch":
             # this is a batch export. These are per *shot*, even in the case of a shot
             # with multiple clips, only one batch file gets output.
@@ -533,6 +557,53 @@ class FlameExport(Application):
 
         # indicate that the export has reached its last stage
         self._reached_post_asset_phase = True
+
+    def _resolve_segment_source_path(self, segment):
+        """
+        CBSD Customization
+
+        Best-effort lookup of the original source media path (e.g. the camera
+        source clip) for the given segment, using Flame's Python scripting API.
+        Returns None if the source media path could not be resolved - this must
+        never raise or abort the export, since it is purely supplementary
+        metadata.
+
+        :param segment: export_utils.Segment object, with flame_data already set.
+        :returns: Path to the source media, or None if it could not be resolved.
+        """
+        try:
+            import flame
+
+            track_name = segment.flame_data.get("trackName")
+            segment_index = segment.flame_data.get("segmentIndex")
+            asset_name = segment.flame_data.get("assetName")
+            shot_name = segment.shot.name
+
+            # flame.timeline.clip is the PyClip/PySequence for the timeline
+            # currently being exported. Walk its tracks/segments looking for
+            # the PySegment that matches this asset by shot name / track name /
+            # segment index, and read its source media path.
+            pysequence = flame.timeline.clip
+
+            source_path = None
+            for version in pysequence.versions:
+                for track in version.tracks:
+                    if track_name and track.name.get_value() != track_name:
+                        continue
+                    for index, pysegment in enumerate(track.segments, start=1):
+                        if segment_index and index != int(segment_index):
+                            continue
+                        if pysegment.name.get_value() not in (asset_name, shot_name):
+                            continue
+                        source_path = getattr(pysegment, "file_path", None)
+                        if source_path:
+                            return source_path
+            return source_path
+        except Exception as e:
+            self.log_warning(
+                "Could not resolve source media path for segment %s: %s" % (segment, e)
+            )
+            return None
 
     def do_submission_and_summary(self, session_id, info):
         """
@@ -686,6 +757,24 @@ class FlameExport(Application):
                                         "Updating ShotGrid...",
                                         "Updating Shot %s / Segment %s (and updating pixel aspect ratio to %s )" % (
                                             shot.name, segment.name, pixel_aspect_ratio),
+                                    )
+
+                                # CBSD Customization
+                                # If the user opted in and a source media path was resolved,
+                                # publish it as an Element and record its filename on the Shot.
+                                if self._publish_source_element and segment.source_media_path:
+                                    element_filename = os.path.basename(
+                                        segment.source_media_path
+                                    )
+                                    self._sg_submit_helper.create_element(
+                                        shot.context,
+                                        element_filename,
+                                        segment.source_media_path,
+                                    )
+                                    self.engine.shotgun.update(
+                                        "Shot",
+                                        shot.context.entity["id"],
+                                        {"sg_client_shot_name": element_filename},
                                     )
 
                                 sg_data = self._sg_submit_helper.register_video_publish(

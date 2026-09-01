@@ -45,6 +45,21 @@ configuration:
         description: The ShotGrid task template to assign to new shot parent entities
         default_value: ""
 
+    element_link_field:
+        type: str
+        default_value: sg_shot
+        description: The name of the single-entity link field on the Element entity
+                     that links it back to the Shot it was created for.
+
+    publish_source_element_default_projects:
+        type: list
+        description: List of Project sg_short_name values for which the "Publish source
+                     media as Element" checkbox in the export dialog defaults to checked.
+        allows_empty: True
+        default_value: ["stgm"]
+        values:
+            type: str
+
     plate_presets:
         type: list
         description: "A list of dictionaries in which you define the various export presets to
