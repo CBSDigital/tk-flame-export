@@ -61,11 +61,12 @@ class FlameExport(Application):
         self.log_debug("%s: Initializing" % self)
 
         # CBSD Customization
-        # Store a version number per shot that can be used across the export process. This is needed
-        # because Flame doesn't pass version information to all hooks, so we need to be able to resolve
-        # it once per shot and then reuse it in later stages of the export process. Keyed by shot name
-        # so that unrelated shots in the same export session don't end up sharing a version number.
-        self._cbs_shot_versions = {}
+        # Store the version number resolved for each individual exported asset, keyed by
+        # (shot name, asset type, asset name). This is needed because Flame doesn't pass
+        # real version metadata back to post_export_asset for every asset type, so we need
+        # to remember what pre_export_asset resolved and reapply it there. Each asset
+        # versions up independently based on its own on-disk history.
+        self._cbs_asset_versions = {}
 
         # sequences that are being exported
         self._sequences = []
@@ -136,7 +137,7 @@ class FlameExport(Application):
         # reset export session data
         self._sequences = []
         self._reached_post_asset_phase = False
-        self._cbs_shot_versions = {}
+        self._cbs_asset_versions = {}
 
         # pop up a UI asking the user for description
         dialogs = self.import_module("dialogs")
@@ -237,56 +238,6 @@ class FlameExport(Application):
         # create entities in ShotGrid, create folders on disk and compute shot contexts.
         sequence.process_shotgun_shot_structure()
         self._sequences.append(sequence)
-
-        # CBSD Customization
-        # Evaluate existing on-disk versions for every shot up front (all shot
-        # contexts are already known at this point), so every asset for a given
-        # shot converges on the same version regardless of the order Flame
-        # streams assets through preExportAsset.
-        for shot in sequence.shots:
-            self._cbs_shot_versions[shot.name] = self._cbs_resolve_shot_publish_version(shot)
-
-    def _cbs_resolve_shot_publish_version(self, shot):
-        """
-        CBSD Customization
-        Scans disk across all export templates for this shot and returns
-        the next version number, so every asset for this shot (plates,
-        batch file, clip xmls) converges on the same version.
-
-        :param shot: Shot object to resolve a publish version for.
-        :returns: Next version number to use for this shot, as an int.
-        """
-        templates = [
-            self._export_preset.get_render_template(),
-            self.get_template("batch_template"),
-            self.get_template("shot_clip_template"),
-            self.get_template("segment_clip_template"),
-        ]
-        skip_fields = ["version", "flame.frame", "segment_name"]
-        # Every shot starts at v1, even a brand new one with nothing on disk yet.
-        pub_ver = 1
-
-        for template in templates:
-            try:
-                fields = shot.context.as_template_fields(template)
-                file_paths = self.sgtk.paths_from_template(
-                    template, fields, skip_fields, skip_missing_optional_keys=True
-                )
-            except Exception as e:
-                self.log_debug(
-                    "Could not scan existing files for template %s / shot %s: %s"
-                    % (template, shot.name, e)
-                )
-                continue
-
-            for a_file in file_paths:
-                try:
-                    path_fields = template.get_fields(a_file)
-                    pub_ver = max(pub_ver, path_fields["version"] + 1)
-                except KeyError:
-                    self.log_debug("version missing in path: %s" % a_file)
-
-        return pub_ver
 
     def pre_export_asset(self, session_id, info):
         """
@@ -417,13 +368,7 @@ class FlameExport(Application):
 
         # create some fields based on the info in the info params
         if "versionNumber" in info:
-            # CBSD Customization
-            # Use the version resolved for this shot in pre_export_sequence,
-            # so all elements of the shot stay in sync.
-            _version_number = int(info["versionNumber"])
-            if shot_name in self._cbs_shot_versions:
-                _version_number = self._cbs_shot_versions[shot_name]
-            fields["version"] = _version_number
+            fields["version"] = int(info["versionNumber"])
 
         fields["segment_name"] = asset_name
 
@@ -454,19 +399,44 @@ class FlameExport(Application):
             )
 
         # CBSD Customization
-        # Safety net: this shot's version should already be cached from
-        # pre_export_sequence. Resolve and cache it now if it wasn't.
+        # If the version number is 0, check if this exact asset already has files on
+        # disk. Version up if found, otherwise start at v1. Scoped to this asset only
+        # (segment_name is not skipped) so different tracks/segments of the same shot
+        # version independently.
         if fields["version"] == 0:
-            self.log_debug(
-                "No cached version found for shot %s - resolving now." % shot_name
+            pub_ver = 1
+            self.log_debug("Checking for existing files on disk...")
+            skip_fields = ["version", "flame.frame"]
+            file_paths = self.sgtk.paths_from_template(
+                template, fields, skip_fields, skip_missing_optional_keys=True
             )
-            pub_ver = self._cbs_resolve_shot_publish_version(shot)
-            self._cbs_shot_versions[shot_name] = pub_ver
+            if file_paths:
+                versions = [0]
+                for a_file in file_paths:
+                    # extract the values from the path so compare version numbers.
+                    path_fields = template.get_fields(a_file)
+                    try:
+                        versions.append(path_fields["version"])
+                    except KeyError as e:
+                        self.log_debug(
+                            "version missing in path: %s" % a_file
+                        )
+                        continue
+
+                else:
+                    pub_ver = max(versions) + 1
+
+            self.log_debug("Forcing publish version to %s" % (pub_ver))
             info["versionNumber"] = pub_ver
             info["versionName"] = "v01"
             fields["version"] = pub_ver
             full_path = template.apply_fields(fields)
-            
+
+        # CBSD Customization
+        # Remember this asset's resolved version so post_export_asset can reapply it -
+        # Flame doesn't report real version metadata back for every asset type.
+        self._cbs_asset_versions[(shot_name, asset_type, asset_name)] = fields["version"]
+
         self.log_debug("Resolved %s -> %s" % (fields, full_path))
 
         # chop off the root of the path - the resolvedPath should be local to the destinationPath
@@ -536,12 +506,13 @@ class FlameExport(Application):
         shot = self._sequences[-1].get_shot(shot_name)
 
         # CBSD Customization
-        # Override the version number in `info`.
-        _shot_cbs_version = self._cbs_shot_versions.get(shot_name)
-        if _shot_cbs_version:
-            info["versionNumber"] = _shot_cbs_version
+        # Reapply the version resolved for this asset in pre_export_asset, since Flame
+        # doesn't report real version metadata back for every asset type.
+        _cbs_version = self._cbs_asset_versions.get((shot_name, asset_type, segment_name))
+        if _cbs_version:
+            info["versionNumber"] = _cbs_version
             if info.get("versionName") == "v00":
-                info["versionName"] = "v%s" % str(_shot_cbs_version).zfill(2)
+                info["versionName"] = "v%s" % str(_cbs_version).zfill(2)
             
         if asset_type in ["video", "movie"]:
             # create a new segment for the shot
@@ -869,7 +840,7 @@ class FlameExport(Application):
 
         # CBSD Customization
         # Clear value
-        self._cbs_shot_versions = {}
+        self._cbs_asset_versions = {}
 
         self.engine.show_modal(
             "Submission Complete", self, dialogs.SubmissionCompleteDialog, comments

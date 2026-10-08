@@ -211,7 +211,14 @@ class Shot(object):
 
     def fix_batch_clip_versions(self):
         """
-        Update version tokens in clip node xml files to match the batch version.
+        Update version tokens in clip node xml files to match the real,
+        independently-resolved version of the segment each clip node actually
+        points to. Flame doesn't reliably write the correct version into these
+        files itself (it uses its own internal version index, which can
+        diverge from the version this app resolved and wrote to disk), so each
+        reference needs to be corrected individually - different clip nodes in
+        the same batch setup can point at different segments, each with its
+        own independently resolved version.
         """
         if not self.has_batch_export:
             return
@@ -226,23 +233,28 @@ class Shot(object):
             )
             return
 
-        version_number = self.batch_version_number
         version_pattern = re.compile(r"v(\d+)")
 
-        def _replace_version_tokens(path_value):
+        def _replace_version_tokens(path_value, version_number):
             def _replace(match):
                 padding = len(match.group(1))
                 return "v%s" % str(version_number).zfill(padding)
 
             return version_pattern.sub(_replace, path_value)
 
+        # First pass: resolve the real version of the segment each
+        # .clip_node_clip's <path> elements point to, keyed by the file's base
+        # name so the paired .clip_node file (same base name, no path of its
+        # own to resolve a segment from) can reuse the same version.
+        resolved_versions = {}
+
         for root_dir, _, files in os.walk(clip_dir):
             for file_name in files:
-                file_type = os.path.splitext(file_name)[1]
-                if not file_type in [".clip_node_clip", ".clip_node"]:
+                if os.path.splitext(file_name)[1] != ".clip_node_clip":
                     continue
 
                 clip_file_path = os.path.join(root_dir, file_name)
+                base_name = os.path.splitext(file_name)[0]
 
                 try:
                     tree = ET.parse(clip_file_path)
@@ -252,28 +264,66 @@ class Shot(object):
                         "Failed to parse clip xml %s: %s" % (clip_file_path, e)
                     )
                     continue
-                
+
                 changed = False
-                if file_type == ".clip_node":
-                    xml_elem = "ClipName"
+                for _elem in root.iter("path"):
+                    if not _elem.text:
+                        continue
 
-                if file_type == ".clip_node_clip":
-                    for _elem in root.iter("path"):
-                        if not _elem.text:
-                            continue
+                    template = self._app.sgtk.template_from_path(_elem.text)
+                    if template is None:
+                        self._app.log_warning(
+                            "Cannot fix version for %s: path '%s' does not "
+                            "match any template." % (clip_file_path, _elem.text)
+                        )
+                        continue
 
-                        updated = _replace_version_tokens(_elem.text)
-                        if updated != _elem.text:
-                            _elem.text = updated
-                            changed = True
-                else:
-                    for _elem in root.iter("ClipName"):
-                        if not _elem.text:
-                            continue
+                    fields = template.get_fields(_elem.text)
+                    segment = self._segments.get(fields.get("segment_name"))
+                    if segment is None or not segment.has_render_export:
+                        continue
 
-                        _elem.text = _elem.text + " v%s" % str(version_number).zfill(2)
+                    version_number = segment.render_version_number
+                    resolved_versions[base_name] = version_number
+
+                    updated = _replace_version_tokens(_elem.text, version_number)
+                    if updated != _elem.text:
+                        _elem.text = updated
                         changed = True
 
                 if changed:
                     tree.write(clip_file_path, encoding="utf-8", xml_declaration=True)
-        
+
+        # Second pass: apply the resolved version to the paired .clip_node
+        # file's ClipName, falling back to the batch's own version if no
+        # paired .clip_node_clip resolved one.
+        for root_dir, _, files in os.walk(clip_dir):
+            for file_name in files:
+                if os.path.splitext(file_name)[1] != ".clip_node":
+                    continue
+
+                clip_file_path = os.path.join(root_dir, file_name)
+                base_name = os.path.splitext(file_name)[0]
+                version_number = resolved_versions.get(
+                    base_name, self.batch_version_number
+                )
+
+                try:
+                    tree = ET.parse(clip_file_path)
+                    root = tree.getroot()
+                except Exception as e:
+                    self._app.log_warning(
+                        "Failed to parse clip xml %s: %s" % (clip_file_path, e)
+                    )
+                    continue
+
+                changed = False
+                for _elem in root.iter("ClipName"):
+                    if not _elem.text:
+                        continue
+
+                    _elem.text = _elem.text + " v%s" % str(version_number).zfill(2)
+                    changed = True
+
+                if changed:
+                    tree.write(clip_file_path, encoding="utf-8", xml_declaration=True)
